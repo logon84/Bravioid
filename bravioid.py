@@ -31,7 +31,7 @@ headers_ircc = {'content-type': 'text/xml', 'Cookie': '@@_cookie_@@', 'SOAPActio
 arguments = {}
 
 class GUI:
-	def resource_path(self, relative_path): #Win EXE related. Access data when bravioid.exe decompresses. If in dev, get local files
+	def resource_path(self, relative_path): #Win EXE related. Access data when bravioid.exe decompresses. In in dev, get local files
 		if hasattr(sys, '_MEIPASS'):
 			return os.path.join(sys._MEIPASS, relative_path)
 		return os.path.join(os.path.abspath("."), relative_path)
@@ -96,7 +96,7 @@ class GUI:
 
 	def on_button_IRRC_clicked(self, *args):
 		pressed = Gtk.Buildable.get_name(*args)
-		x = pro.send_IRCC_command(pressed.replace("button_", ""))
+		x = pro.send_command(pressed.replace("button_", ""))
 		statusbar = self.builder.get_object('statusbar1')
 		cont = statusbar.get_context_id("statusbar1")
 		statusbar.push(cont, pressed.replace("button_", "") + ' [' + str (x) + ']')
@@ -105,7 +105,7 @@ class GUI:
 		entry = self.builder.get_object('entry1')
 		txt = entry.get_text()
 		for comm in txt.split('&'):
-			x = pro.send_IRCC_command(comm)
+			x = pro.send_command(comm)
 			time_sleep(2)
 		statusbar = self.builder.get_object('statusbar1')
 		cont = statusbar.get_context_id("statusbar1")
@@ -122,11 +122,11 @@ class GUI:
 		tmp = original_data.split ('\"params\":[')
 		data_part0 = tmp[0] + '\"params\":['
 		tmp = tmp[1].split (']')
-		data_part2 = ']' + tmp[1]
 		if '_no_name_' in str(arguments):
 			data_part1 = '\"' + arguments['_no_name_'] + '\"'
 		else:
 			data_part1 = str(arguments)
+		data_part2 = ']' + tmp[1]
 		data = data_part0 + data_part1 + data_part2	
 		try:
 			r = requests.post(url, data=data, headers={'Cookie': cookie}, timeout=2.000)
@@ -231,7 +231,7 @@ class GUI:
 		
 	def on_button_DIAL_refresh_clicked(self, widget):
 		url = 'http://' + tv_ip + '/DIAL/sony/applist'
-		r = requests.get(url, headers={'Cookie': cookie}, timeout=3.000) #get applist
+		r = requests.get(url, headers={'Cookie': cookie}, timeout=2.000)
 		if r.status_code == 200:
 			file_apps = tempfile.TemporaryFile()
 			file_apps.write(bytes(r.text,'utf-8'))
@@ -240,8 +240,8 @@ class GUI:
 			file_apps.close()
 			liststore_apps = self.builder.get_object('liststore_apps')
 			liststore_apps.clear()
-			for child in root.iter('app'): #download every icon app and store id + name + icon row
-				r = requests.get(child.find('icon_url').text, headers={'Cookie': cookie}, timeout=3.000)
+			for child in root.iter('app'):
+				r = requests.get(child.find('icon_url').text, headers={'Cookie': cookie}, timeout=2.000)
 				icon = GdkPixbuf.PixbufLoader.new()
 				icon.set_size(30, 30)
 				icon.write(r.content)
@@ -298,7 +298,7 @@ class GUI:
 		label_DIAL_info.set_text('All apps stopped')
 				
 
-	def family_filter(self, model, iter, data): #filter for generating api comboboxes filtered by destination url
+	def family_filter(self, model, iter, data):
 		if data == model[iter][0]:
 			return True
 		else:
@@ -322,8 +322,6 @@ class GUI:
 		global url_auth
 		global json_auth
 		entry2 = self.builder.get_object('entry2')
-		message = self.builder.get_object("label2")
-		popup =  self.builder.get_object("popup1")
 		if GUI.validate_ip(entry2.get_text()):
 				url_auth [1] = entry2.get_text()
 				try:
@@ -336,19 +334,29 @@ class GUI:
 						window_PIN.show_all()
 					elif r.status_code == 200:
 						if "Turned off" in r.text:
+							message = self.builder.get_object("label2")
 							message.set_text ('TV is switched OFF, please turn it ON')
+							popup =  self.builder.get_object("popup1")
 							popup.show_all()
 						if ":[]" in r.text:
+							message = self.builder.get_object("label2")
 							message.set_text ('Seems that this computer is already paired with TV. Please, unregister it on TV')
+							popup =  self.builder.get_object("popup1")
 							popup.show_all()
 					else:	#there's an http server at the other side, but not a TV
+						message = self.builder.get_object("label2")
 						message.set_text ('No TV Found -' + r.status_code)
+						popup =  self.builder.get_object("popup1")
 						popup.show_all()
 				except:	#No reponse exception, no TV on the other side
+					message = self.builder.get_object("label2")
 					message.set_text ('No TV Found - Err')
+					popup =  self.builder.get_object("popup1")
 					popup.show_all()
 		else:
+				message = self.builder.get_object("label2")
 				message.set_text ('Invalid IP adress!')
+				popup =  self.builder.get_object("popup1")
 				popup.show_all()
 		return True
 
@@ -366,12 +374,12 @@ class GUI:
 		r = requests.post(url_auth [0] + tv_ip + url_auth [2], data=json_auth, auth=('Bravioid', entry3.get_text()), timeout=2.000)
 		if r.status_code == 200:#Succesfully registered
 			cookie = "auth=" + r.cookies ['auth']
-			r = requests.post(url_info [0] + tv_ip + url_info [2], data=json_info, timeout=2.000)
+			r = requests.post(url_info [0] + tv_ip + url_info [2], data=json_info, timeout=2.000) #get IRCC commands
 			remote_data = json.loads(r.text)
 			for i in range (0, len (remote_data["result"][1])):
 				cmd_names = cmd_names + tuple([remote_data["result"][1][i]["name"]])
 				cmd_codes = cmd_codes + tuple([remote_data["result"][1][i]["value"]])
-		config['DEFAULT'] = {'TV_ip': tv_ip,'Cookie': cookie,'IRCCnames': cmd_names,'IRCCcodes': cmd_codes}
+		config['DEFAULT'] = {'TV_ip': tv_ip,'IRCCnames': cmd_names,'IRCCcodes': cmd_codes}
 		with open('bravia.cfg', 'w') as configfile:
 			config.write(configfile)
 		liststore_family = self.builder.get_object('liststore_family')
@@ -379,7 +387,7 @@ class GUI:
 		liststore_methods = self.builder.get_object('liststore_methods')
 		liststore_methods.clear()
 		file_api = open('bravia.api', 'w')
-		for fam in API_families: #ask for methods on every category
+		for fam in API_families: #get API methods for every category
 			row = [fam]
 			liststore_family.append(row)
 			r = requests.post('http://192.168.1.5/sony/' + fam, data='{"method":"getMethodTypes","params":[""],"id":1,"version":"1.0"}', headers='', timeout = 2.000)
@@ -406,7 +414,8 @@ class GUI:
 		window.show_all()
 
 class pro:    
-	def send_IRCC_command( str ):
+	def send_command( str ):
+		global send_command
 		global xml_ircc
 		global url_ircc
 		global headers_ircc
@@ -422,13 +431,17 @@ class pro:
 if __name__ == "__main__":
 	app = GUI()
 	cfg_file = Path("bravia.cfg")
-	if cfg_file.is_file():
+	if cfg_file.is_file(): #Not first run?
 		config.read('bravia.cfg')
 		tv_ip = config.get('DEFAULT', 'TV_ip')
-		cookie = config.get('DEFAULT', 'Cookie')
-		cmd_names = ast.literal_eval(config.get('DEFAULT', 'IRCCnames'))
-		cmd_codes = ast.literal_eval(config.get('DEFAULT', 'IRCCcodes'))
-		app.main()
-	else:
+		r = requests.post(url_auth [0] + tv_ip + url_auth [2], data=json_auth, timeout=2.000) #request new cookie on every startup to ensure it doesn't expire
+		if r.status_code == 200:#We got a new cookie
+			cookie = "auth=" + r.cookies ['auth']
+			cmd_names = ast.literal_eval(config.get('DEFAULT', 'IRCCnames'))
+			cmd_codes = ast.literal_eval(config.get('DEFAULT', 'IRCCcodes'))
+			app.main()
+		else: #cookie expired, let's start the process to ask for a new one
+			app.pairTV()
+	else: #first run, start pairing tv
 		app.pairTV()
 
