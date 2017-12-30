@@ -144,6 +144,7 @@
   </object>
   <object class="GtkWindow" id="popup1">
     <property name="can_focus">False</property>
+    <property name="icon">./res/python.png</property>
     <signal name="delete-event" handler="on_popup1_delete_event" swapped="no"/>
     <child>
       <object class="GtkBox" id="box37">
@@ -205,6 +206,7 @@
   <object class="GtkWindow" id="window_IP">
     <property name="can_focus">False</property>
     <property name="window_position">center</property>
+    <property name="icon">./res/python.png</property>
     <signal name="delete-event" handler="on_window_IP_delete_event" swapped="no"/>
     <child>
       <object class="GtkBox" id="box2">
@@ -283,6 +285,7 @@
   <object class="GtkWindow" id="window_PIN">
     <property name="can_focus">False</property>
     <property name="window_position">center</property>
+    <property name="icon">./res/python.png</property>
     <signal name="delete-event" handler="on_window_PIN_delete_event" swapped="no"/>
     <child>
       <object class="GtkBox" id="box35">
@@ -290,6 +293,7 @@
         <property name="can_focus">False</property>
         <property name="margin_left">20</property>
         <property name="margin_right">20</property>
+        <property name="margin_bottom">10</property>
         <property name="orientation">vertical</property>
         <property name="spacing">5</property>
         <child>
@@ -363,6 +367,7 @@
     <property name="resizable">False</property>
     <property name="window_position">center</property>
     <property name="destroy_with_parent">True</property>
+    <property name="icon">./res/python.png</property>
     <property name="type_hint">menu</property>
     <signal name="delete-event" handler="on_window_about_delete_event" swapped="no"/>
     <child>
@@ -1967,7 +1972,7 @@
                         </child>
                         <child>
                           <object class="GtkButton" id="button_sendRAW">
-                            <property name="label" translatable="yes">Send</property>
+                            <property name="label" translatable="yes">Send RAW</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>

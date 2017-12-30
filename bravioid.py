@@ -24,8 +24,8 @@ cmd_codes = ();
 url_auth = ['http://', '@@_IP_@@', '/sony/accessControl'];
 url_info = ['http://', '@@_IP_@@', '/sony/system'];
 url_ircc = ['http://', '@@_IP_@@', '/sony/IRCC']
-json_auth = '{"id":8, "method":"actRegister", "version":"1.0", "params":[{ "clientid":"Bravioid","nickname":"Bravioid"},[{"clientid":"Bravioid","value":"yes","nickname":"Bravioid","function":"WOL"}]]}'
-json_info = '{"method":"getRemoteControllerInfo","params":[],"id":10,"version":"1.0"}'
+json_auth = '{"id":8, "method":"actRegister", "version":"1.0", "params":[{ "clientid":"Bravioid","nickname":"Bravioid","level":"private"},[{"function":"WOL", "value":"yes"}]]}'
+json_RC_info = '{"method":"getRemoteControllerInfo","params":[],"id":10,"version":"1.0"}'
 xml_ircc = ['<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:X_SendIRCC xmlns:u="urn:schemas-sony-com:service:IRCC:1"><IRCCCode>', '@@_cmd_@@', '</IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>']
 headers_ircc = {'content-type': 'text/xml', 'Cookie': '@@_cookie_@@', 'SOAPAction': '"urn:schemas-sony-com:service:IRCC:1#X_SendIRCC"'}
 arguments = {}
@@ -78,7 +78,7 @@ class GUI:
 		liststore_family = self.builder.get_object('liststore_family')
 		liststore_methods = self.builder.get_object('liststore_methods')
 		with open("bravia.api", 'r') as apifile:
-			for line in apifile:
+			for line in apifile: #read api methods from bravia.api and create liststores for comboboxes
 				row = ast.literal_eval(line)
 				liststore_methods.append(row)
 				if last_cat != row [0]:
@@ -96,7 +96,7 @@ class GUI:
 
 	def on_button_IRRC_clicked(self, *args):
 		pressed = Gtk.Buildable.get_name(*args)
-		x = pro.send_command(pressed.replace("button_", ""))
+		x = pro.send_IRCC_command(pressed.replace("button_", "")) #get 'command' from 'button_command' (every ircc button has its name built this way)
 		statusbar = self.builder.get_object('statusbar1')
 		cont = statusbar.get_context_id("statusbar1")
 		statusbar.push(cont, pressed.replace("button_", "") + ' [' + str (x) + ']')
@@ -105,7 +105,7 @@ class GUI:
 		entry = self.builder.get_object('entry1')
 		txt = entry.get_text()
 		for comm in txt.split('&'):
-			x = pro.send_command(comm)
+			x = pro.send_IRCC_command(comm)
 			time_sleep(2)
 		statusbar = self.builder.get_object('statusbar1')
 		cont = statusbar.get_context_id("statusbar1")
@@ -236,11 +236,11 @@ class GUI:
 			file_apps = tempfile.TemporaryFile()
 			file_apps.write(bytes(r.text,'utf-8'))
 			file_apps.seek(0)
-			root = ET.fromstring(file_apps.read())
+			root = ET.fromstring(file_apps.read()) #read app's XML data from temporary file, reading directly from request reponse leads to error
 			file_apps.close()
 			liststore_apps = self.builder.get_object('liststore_apps')
 			liststore_apps.clear()
-			for child in root.iter('app'):
+			for child in root.iter('app'): #for every app, download icon and generate a package+name+icon row for the combo
 				r = requests.get(child.find('icon_url').text, headers={'Cookie': cookie}, timeout=2.000)
 				icon = GdkPixbuf.PixbufLoader.new()
 				icon.set_size(30, 30)
@@ -278,6 +278,9 @@ class GUI:
 		headers = {'Origin':'package:' + package, 'Host':tv_ip, 'Cookie': cookie }
 		r = requests.get(url, headers=headers, timeout=4.000)
 		label_DIAL_info.set_text(r.text)
+		statusbar = self.builder.get_object('statusbar1')
+		cont = statusbar.get_context_id("statusbar1")
+		statusbar.push(cont, 'INFO ' + model_DIAL_apps[active_DIAL_app][1] + ' [' + str(r.status_code) + ']')
 
 	def on_button_DIAL_run_clicked(self, widget):
 		label_DIAL_info = self.builder.get_object('label_DIAL_info')
@@ -289,6 +292,9 @@ class GUI:
 		headers = {'Origin':'package:' + package, 'Host':tv_ip, 'Cookie': cookie }
 		r = requests.post(url, headers=headers, timeout=4.000)
 		label_DIAL_info.set_text(r.text)
+		statusbar = self.builder.get_object('statusbar1')
+		cont = statusbar.get_context_id("statusbar1")
+		statusbar.push(cont, 'RUN ' + model_DIAL_apps[active_DIAL_app][1] + ' [' + str(r.status_code) + ']')
 
 	def on_button_DIAL_stop_clicked(self, widget):
 		url = 'http://' + tv_ip + '/sony/appControl'
@@ -296,6 +302,9 @@ class GUI:
 		r = requests.post(url, data ='{"method":"terminateApps","params":[],"id":1,"version":"1.0"}', headers=headers, timeout=4.000)
 		label_DIAL_info = self.builder.get_object('label_DIAL_info')
 		label_DIAL_info.set_text('All apps stopped')
+		statusbar = self.builder.get_object('statusbar1')
+		cont = statusbar.get_context_id("statusbar1")
+		statusbar.push(cont, 'STOP APPS [' + str(r.status_code) + ']')
 				
 
 	def family_filter(self, model, iter, data):
@@ -322,6 +331,8 @@ class GUI:
 		global url_auth
 		global json_auth
 		entry2 = self.builder.get_object('entry2')
+		message = self.builder.get_object("label2")
+		popup =  self.builder.get_object("popup1")
 		if GUI.validate_ip(entry2.get_text()):
 				url_auth [1] = entry2.get_text()
 				try:
@@ -334,29 +345,19 @@ class GUI:
 						window_PIN.show_all()
 					elif r.status_code == 200:
 						if "Turned off" in r.text:
-							message = self.builder.get_object("label2")
 							message.set_text ('TV is switched OFF, please turn it ON')
-							popup =  self.builder.get_object("popup1")
 							popup.show_all()
 						if ":[]" in r.text:
-							message = self.builder.get_object("label2")
 							message.set_text ('Seems that this computer is already paired with TV. Please, unregister it on TV')
-							popup =  self.builder.get_object("popup1")
 							popup.show_all()
 					else:	#there's an http server at the other side, but not a TV
-						message = self.builder.get_object("label2")
 						message.set_text ('No TV Found -' + r.status_code)
-						popup =  self.builder.get_object("popup1")
 						popup.show_all()
 				except:	#No reponse exception, no TV on the other side
-					message = self.builder.get_object("label2")
 					message.set_text ('No TV Found - Err')
-					popup =  self.builder.get_object("popup1")
 					popup.show_all()
 		else:
-				message = self.builder.get_object("label2")
 				message.set_text ('Invalid IP adress!')
-				popup =  self.builder.get_object("popup1")
 				popup.show_all()
 		return True
 
@@ -371,51 +372,57 @@ class GUI:
 		API_families = ['accessControl', 'appControl', 'audio', 'avContent', 'browser', 'cec', 'encryption', 'guide', 'recording', 'system', 'videoScreen']
 		data_col_std = '{"method":"@@_setmethod_@@","params":[@@_setparams_@@],"id":1,"version":"@@_setversion_@@"}'
 		entry3 = self.builder.get_object('entry3')
+		message = self.builder.get_object("label2")
+		popup =  self.builder.get_object("popup1")
 		r = requests.post(url_auth [0] + tv_ip + url_auth [2], data=json_auth, auth=('Bravioid', entry3.get_text()), timeout=2.000)
 		if r.status_code == 200:#Succesfully registered
 			cookie = "auth=" + r.cookies ['auth']
-			r = requests.post(url_info [0] + tv_ip + url_info [2], data=json_info, timeout=2.000) #get IRCC commands
+			r = requests.post(url_info [0] + tv_ip + url_info [2], data=json_RC_info, timeout=2.000) #get IRCC commands
 			remote_data = json.loads(r.text)
 			for i in range (0, len (remote_data["result"][1])):
 				cmd_names = cmd_names + tuple([remote_data["result"][1][i]["name"]])
 				cmd_codes = cmd_codes + tuple([remote_data["result"][1][i]["value"]])
-		config['DEFAULT'] = {'TV_ip': tv_ip,'IRCCnames': cmd_names,'IRCCcodes': cmd_codes}
-		with open('bravia.cfg', 'w') as configfile:
-			config.write(configfile)
-		liststore_family = self.builder.get_object('liststore_family')
-		liststore_family.clear()
-		liststore_methods = self.builder.get_object('liststore_methods')
-		liststore_methods.clear()
-		file_api = open('bravia.api', 'w')
-		for fam in API_families: #get API methods for every category
-			row = [fam]
-			liststore_family.append(row)
-			r = requests.post('http://192.168.1.5/sony/' + fam, data='{"method":"getMethodTypes","params":[""],"id":1,"version":"1.0"}', headers='', timeout = 2.000)
-			json_response = r.json()
-			for x in range (0, len(json_response["results"])): #parse every method for its name, arguments and version
-				name_col = json_response["results"][x][0] + ' ' + json_response["results"][x][3]
-				try: #does it need params for calling?
-					tmp = json_response["results"][x][1]
-					argums = tmp[0]
-					if not '{' in argums:
-						argums = '\"' + argums + '\"'
-				except: #method doesn,t need input params
-					argums = ''
-				data_col = data_col_std.replace('@@_setmethod_@@', json_response["results"][x][0])
-				data_col = data_col.replace('@@_setparams_@@', argums)
-				data_col = data_col.replace('@@_setversion_@@', json_response["results"][x][3])
-				row = [fam, name_col, data_col]
-				liststore_methods.append(row)
-				file_api.write(str(row) + '\n')
-		file_api.close()
-		window_PIN = self.builder.get_object("window_PIN")
-		window_PIN.hide()
-		window = self.builder.get_object("window_main")
-		window.show_all()
+			config['DEFAULT'] = {'TV_ip': tv_ip,'IRCCnames': cmd_names,'IRCCcodes': cmd_codes}
+			with open('bravia.cfg', 'w') as configfile:
+				config.write(configfile)
+			liststore_family = self.builder.get_object('liststore_family')
+			liststore_family.clear()
+			liststore_methods = self.builder.get_object('liststore_methods')
+			liststore_methods.clear()
+			file_api = open('bravia.api', 'w')
+			for fam in API_families: #get API methods for every category
+				row = [fam]
+				liststore_family.append(row)
+				r = requests.post('http://192.168.1.5/sony/' + fam, data='{"method":"getMethodTypes","params":[""],"id":1,"version":"1.0"}', headers='', timeout = 2.000)
+				json_response = r.json()
+				for x in range (0, len(json_response["results"])): #parse every method for its name, arguments and version
+					name_col = json_response["results"][x][0] + ' ' + json_response["results"][x][3]
+					try: #does it need params for calling?
+						tmp = json_response["results"][x][1]
+						argums = tmp[0]
+						if not '{' in argums:
+							argums = '\"' + argums + '\"'
+					except: #method doesn,t need input params
+						argums = ''
+					data_col = data_col_std.replace('@@_setmethod_@@', json_response["results"][x][0])
+					data_col = data_col.replace('@@_setparams_@@', argums)
+					data_col = data_col.replace('@@_setversion_@@', json_response["results"][x][3])
+					row = [fam, name_col, data_col]
+					liststore_methods.append(row)
+					file_api.write(str(row) + '\n')
+			file_api.close()
+			window_PIN = self.builder.get_object("window_PIN")
+			window_PIN.hide()
+			window = self.builder.get_object("window_main")
+			window.show_all()
+		else: #entered pin was incorrect
+			r = requests.post(url_auth [0] + url_auth [1] + url_auth [2], data=json_auth, timeout=2.000)
+			message.set_text ('Wrong PIN!')
+			popup.show_all()	
 
 class pro:    
-	def send_command( str ):
-		global send_command
+	def send_IRCC_command( str ):
+		global send_IRCC_command
 		global xml_ircc
 		global url_ircc
 		global headers_ircc
