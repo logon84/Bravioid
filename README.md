@@ -1,7 +1,9 @@
 # Bravioid
 Sony Bravia 2017 (Android TV) remote GUI
 
-It probably works on previous models, I just tested on my EUR xe9005 (xe900e in America)
+Written in python3.
+
+It probably works on previous models, I just tested on my EUR xe9005 (xe900e in America).
 
 I still need to comment properly the py file and do some code-cleaning, but hey, it's my first python program ever :)
 
